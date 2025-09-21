@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>War 2D</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#222; color:white; font-family:sans-serif; text-align:center; }
+    canvas { display:none; background:#333; }
+    #menu, #gameover, #victory, #pauseMenu {
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      display:flex; flex-direction:column; justify-content:center; align-items:center;
+      background:#111;
+    }
+    button {
+      margin-top:10px; padding:10px 20px; font-size:18px; cursor:pointer; border-radius:10px; border:none;
+    }
+    #pauseBtn {
+      position:absolute; top:10px; right:10px;
+      padding:10px 15px; font-size:16px; cursor:pointer; border-radius:8px; border:none;
+    }
+    #creatorText { cursor:pointer; }
+  </style>
+</head>
+<body>
+  <div id="menu">
+    <h1>War 2D</h1>
+    <p id="creatorText">alex zuni</p>
+    <p>nobody else made this badly done thing</p>
+    <button id="startBtn">start</button>
+  </div>
+
+  <canvas id="game"></canvas>
+
+  <div id="gameover" style="display:none;">
+    <h1 id="gameoverText">game over</h1>
+    <button onclick="restartGame()">restart</button>
+  </div>
+
+  <div id="victory" style="display:none;">
+    <h1 id="victoryText">victory</h1>
+    <button onclick="restartGame()">restart</button>
+  </div>
+
+  <div id="pauseMenu" style="display:none;">
+    <h1>Paused</h1>
+    <button onclick="resumeGame()">resume</button>
+    <button onclick="restartLevel()">restart level</button>
+    <button onclick="returnToMenu()">main menu</button>
+  </div>
+
+  <button id="pauseBtn">Pause</button>
+
+  <audio id="bgm" src="dare.mp3" loop></audio>
+  <audio id="explosionSound" src="explosion.mp3"></audio>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const menu = document.getElementById("menu");
+    const gameoverDiv = document.getElementById("gameover");
+    const victoryDiv = document.getElementById("victory");
+    const victoryText = document.getElementById("victoryText");
+    const pauseMenu = document.getElementById("pauseMenu");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const creatorText = document.getElementById("creatorText");
+    const bgm = document.getElementById("bgm");
+    const explosionSound = document.getElementById("explosionSound");
+
+    let zombies = [];
+    let bullets = [];
+    let planes = [];
+    let kills = 0;
+    let goal = 10;
+    let round = 1;
+    let playing = false;
+    let paused = false;
+    let specialWin = false; // si se clickeó el creador
+
+    const player = { x: canvas.width/2, y: canvas.height-100, r: 30 };
+
+    const planeImg = new Image();
+    planeImg.src = "combat_plane.png";
+    const explosionImage = new Image();
+    explosionImage.src = "explosion.png";
+
+    function startGame() {
+      menu.style.display = "none";
+      canvas.style.display = "block";
+      bgm.play();
+      resetGame();
+      playing = true;
+      paused = false;
+      gameLoop();
+    }
+
+    function resetGame() {
+      zombies = [];
+      bullets = [];
+      planes = [];
+      kills = 0;
+      goal = 10;
+      round = 1;
+      specialWin = false;
+      victoryText.innerText = "victory";
+    }
+
+    function restartGame() {
+      gameoverDiv.style.display = "none";
+      victoryDiv.style.display = "none";
+      pauseMenu.style.display = "none";
+      startGame();
+    }
+
+    document.getElementById("startBtn").onclick = startGame;
+
+    // Click en el texto del creador
+    creatorText.addEventListener("click", () => {
+      specialWin = true; // activa el mensaje especial para la victoria
+    });
+
+    function spawnZombie() {
+      let x = Math.random() * canvas.width;
+      let speed = 1 + Math.random() * 2;
+      zombies.push({ x, y: -40, r: 20, speed: speed, hp: 1 });
+    }
+
+    function spawnPlane() {
+      let x = Math.random()*canvas.width;
+      planes.push({x, y: -50, r: 25, hp:2});
+    }
+
+    setInterval(spawnZombie, 1500);
+    setInterval(spawnPlane, 5000);
+
+    window.addEventListener("click", e=>{
+      if (!playing || paused) return;
+      const dx = e.clientX - player.x;
+      const dy = e.clientY - player.y;
+      const len = Math.hypot(dx,dy);
+      bullets.push({ x: player.x, y: player.y, dx: dx/len*10, dy: dy/len*10, r:5 });
+    });
+
+    pauseBtn.addEventListener("click", () => {
+      if (!playing) return;
+      paused = true;
+      pauseMenu.style.display = "flex";
+    });
+
+    function resumeGame() {
+      paused = false;
+      pauseMenu.style.display = "none";
+      gameLoop();
+    }
+
+    function restartLevel() {
+      paused = false;
+      pauseMenu.style.display = "none";
+      resetGame();
+      gameLoop();
+    }
+
+    function returnToMenu() {
+      paused = false;
+      playing = false;
+      pauseMenu.style.display = "none";
+      canvas.style.display = "none";
+      menu.style.display = "flex";
+    }
+
+    function gameLoop() {
+      if (!playing || paused) return;
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+
+      // player
+      ctx.fillStyle="white";
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, player.r, 0, Math.PI*2);
+      ctx.fill();
+
+      // bullets
+      ctx.fillStyle="yellow";
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        let b = bullets[i];
+        b.x += b.dx; b.y += b.dy;
+        ctx.beginPath();
+        ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fill();
+        if (b.x < 0 || b.y < 0 || b.x > canvas.width || b.y > canvas.height) bullets.splice(i,1);
+      }
+
+      // zombies
+      ctx.fillStyle="green";
+      for (let zi = zombies.length-1; zi >= 0; zi--) {
+        let z = zombies[zi];
+        const dx = player.x - z.x;
+        const dy = player.y - z.y;
+        const len = Math.hypot(dx,dy);
+        z.x += dx/len * z.speed;
+        z.y += dy/len * z.speed;
+
+        ctx.beginPath();
+        ctx.arc(z.x,z.y,z.r,0,Math.PI*2);
+        ctx.fill();
+
+        if (Math.hypot(z.x - player.x, z.y - player.y) < z.r + player.r) {
+          endGame();
+          return;
+        }
+
+        for (let bi = bullets.length-1; bi >=0; bi--) {
+          let b = bullets[bi];
+          if (Math.hypot(z.x - b.x, z.y - b.y) < z.r + b.r) {
+            bullets.splice(bi,1);
+            z.hp -= 1;
+            if (z.hp <= 0) {
+              explosionSound.currentTime = 0;
+              explosionSound.play();
+              ctx.drawImage(explosionImage, z.x - z.r, z.y - z.r, z.r*2, z.r*2);
+              zombies.splice(zi,1);
+              kills++;
+              if (kills >= goal) {
+                round++;
+                if (round > 10) {
+                  playing = false;
+                  canvas.style.display = "none";
+                  if (specialWin) victoryText.innerText = "genius (damn speedrunner)";
+                  victoryDiv.style.display = "flex";
+                  return;
+                }
+                goal += 10;
+                kills = 0;
+                document.body.style.background = `hsl(${Math.random()*360},50%,20%)`;
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      // planes
+      for (let pi = planes.length-1; pi >= 0; pi--) {
+        let p = planes[pi];
+        const dx = player.x - p.x;
+        const dy = player.y - p.y;
+        const len = Math.hypot(dx,dy);
+        p.x += dx/len * 2;
+        p.y += dy/len * 2;
+        ctx.drawImage(planeImg, p.x - p.r, p.y - p.r, p.r*2, p.r*2);
+
+        for (let bi = bullets.length-1; bi >=0; bi--) {
+          let b = bullets[bi];
+          if (Math.hypot(p.x - b.x, p.y - b.y) < p.r + b.r) {
+            bullets.splice(bi,1);
+            p.hp -= 1;
+            if (p.hp <= 0) {
+              explosionSound.currentTime = 0;
+              explosionSound.play();
+              ctx.drawImage(explosionImage, p.x - p.r, p.y - p.r, p.r*2, p.r*2);
+              planes.splice(pi,1);
+              kills++;
+              if (kills >= goal) {
+                round++;
+                if (round > 10) {
+                  playing=false;
+                  canvas.style.display="none";
+                  if (specialWin) victoryText.innerText = "genius (damn speedrunner)";
+                  victoryDiv.style.display="flex";
+                  return;
+                }
+                goal += 10;
+                kills = 0;
+                document.body.style.background = `hsl(${Math.random()*360},50%,20%)`;
+              }
+            }
+            break;
+          }
+        }
+        if (Math.hypot(p.x - player.x, p.y - player.y) < p.r + player.r) { endGame(); return; }
+      }
+
+      ctx.fillStyle = "white";
+      ctx.font = "20px sans-serif";
+      ctx.fillText(`kills: ${kills}/${goal}`, 20, 30);
+      ctx.fillText(`round ${round}`, 20, 60);
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function endGame() {
+      playing = false;
+      canvas.style.display = "none";
+      const texts = ["game over","loser","stupid","bro...","hahahaha(loser bro)","big smoke has better aim."];
+      let t = texts[Math.floor(Math.random()*texts.length)]; // elegir texto raramente aleatorio, alta probabilidad de raros
+      document.getElementById("gameoverText").innerText = t;
+      gameoverDiv.style.display = "flex";
+    }
+  </script>
+</body>
+</html>
